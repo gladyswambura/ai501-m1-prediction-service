@@ -1,8 +1,12 @@
-from service.validation import validate
-from service.model import score
+from service.worker import PredictionService
 
-for request in [{"features": [1, 2, 3]}, {"features": "hello"}]:
-    try:
-        print("score:", score(validate(request)))
-    except ValueError as error:
-        print("rejected:", error)
+service = PredictionService(workers=4)
+
+for i in range(10):
+    features = "hello" if i == 5 else [i, i + 1]
+    service.submit(i, {"features": features})
+
+service.stop()
+
+for request_id in sorted(service.results):
+    print(request_id, service.results[request_id])
