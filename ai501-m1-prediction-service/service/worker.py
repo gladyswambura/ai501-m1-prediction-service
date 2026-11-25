@@ -1,3 +1,6 @@
+import time
+import uuid
+from service.logger import log_event
 import queue
 import threading
 
@@ -14,27 +17,35 @@ class PredictionService:
             thread.start()
 
     def submit(self, request_id, request):
+        trace_id = str(uuid.uuid4())
+        start = time.perf_counter()
         try:
             features = validate(request)
         except ValueError as error:
-            self._save(request_id, {"status": "rejected", "reason": str(error)})
+            result = {"status": "rejected", "reason": str(error)}
+            self._save(request_id, result, 400, trace_id, start)
             return
-        self.jobs.put((request_id, features))  # waits if the queue is full
+        self.jobs.put((request_id, features, trace_id, start))
 
     def _work(self):
         while True:
             job = self.jobs.get()
-            if job is None:  # signal to stop
+            if job is None:
                 break
-            request_id, features = job
+            request_id, features, trace_id, start = job
             try:
-                self._save(request_id, {"status": "ok", "score": score(features)})
-            except Exception as error:  # one bad job must not kill the worker
-                self._save(request_id, {"status": "error", "reason": str(error)})
+                result = {"status": "ok", "score": score(features)}
+                code = 200
+            except Exception as error:
+                result = {"status": "error", "reason": str(error)}
+                code = 500
+            self._save(request_id, result, code, trace_id, start)
 
-    def _save(self, request_id, result):
-        with self.lock:  # only one thread writes at a time
+    def _save(self, request_id, result, code, trace_id, start):
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        with self.lock:
             self.results[request_id] = result
+        log_event(trace_id, code, latency_us)
 
     def stop(self):
         for _ in self.threads:
