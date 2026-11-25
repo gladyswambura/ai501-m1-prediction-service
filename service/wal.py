@@ -3,8 +3,9 @@ import os
 import threading
 
 class WriteAheadLog:
-    def __init__(self, path):
+    def __init__(self, path, fsync=True):
         self.path = path
+        self.fsync = fsync
         self.lock = threading.Lock()
         self.file = open(path, "a", encoding="utf-8")
 
@@ -12,6 +13,7 @@ class WriteAheadLog:
         with self.lock:
             self.file.write(json.dumps(record) + "\n")
             self.file.flush()
+        if self.fsync:
             os.fsync(self.file.fileno())  # force it onto the disk
 
     def pending(self):

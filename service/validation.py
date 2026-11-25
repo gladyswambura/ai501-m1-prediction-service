@@ -9,6 +9,10 @@ def validate(request):
     for x in features:
         if isinstance(x, bool) or not isinstance(x, (int, float)):
             raise ValueError("every feature must be a number")
-        if not math.isfinite(x):
+        try:
+            finite = math.isfinite(x)
+        except OverflowError:  # integer too big to use
+            finite = False
+        if not finite:
             raise ValueError("numbers must be finite")
     return features

@@ -11,13 +11,14 @@ from service.wal import WriteAheadLog
 
 class PredictionService:
     def __init__(self, workers=4, max_queue=100, failure_rate=0.0,
-                 max_attempts=20, wal_path="wal.log"):
+                 max_attempts=20, wal_path="wal.log", fsync=True):
         self.jobs = queue.Queue(maxsize=max_queue)
         self.results = {}
         self.retries = 0
         self.failure_rate = failure_rate
         self.max_attempts = max_attempts
-        self.wal = WriteAheadLog(wal_path)
+        self.wal = WriteAheadLog(wal_path, fsync)
+        self.latencies = []
         self.lock = threading.Lock()
         self.threads = [threading.Thread(target=self._work) for _ in range(workers)]
         for thread in self.threads:
@@ -80,6 +81,7 @@ class PredictionService:
         latency_us = int((time.perf_counter() - start) * 1_000_000)
         with self.lock:
             self.results[request_id] = result
+            self.latencies.append(latency_us)
         log_event(trace_id, code, latency_us)
 
     def stop(self):
