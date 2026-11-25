@@ -1,12 +1,15 @@
+from collections import Counter
+
 from service.worker import PredictionService
 
-service = PredictionService(workers=4)
+service = PredictionService(workers=4, failure_rate=0.3)
 
-for i in range(10):
+for i in range(100):
     features = "hello" if i == 5 else [i, i + 1]
     service.submit(i, {"features": features})
 
 service.stop()
 
-for request_id in sorted(service.results):
-    print(request_id, service.results[request_id])
+print(Counter(result["status"] for result in service.results.values()))
+print("retries:", service.retries)
+print("unfinished:", len(service.wal.pending()))
